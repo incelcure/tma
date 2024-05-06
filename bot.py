@@ -1,37 +1,44 @@
 import os
+from _curses import echo
+
+from dotenv import load_dotenv
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.ext import Updater, CommandHandler, CallbackContext, Application, ContextTypes, MessageHandler, filters
 
-# Функция для обработки команды /start
-def start(update: Update, context: CallbackContext) -> None:
+load_dotenv()
+
+
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Текст сообщения с описанием команд
-    message = ("Привет! Я твой телеграм-бот.\n\n"
+    message = ("Привет! Я TMA - Анонимный Телеграм Мессенджер.\n\n"
                "Вот список доступных команд и их назначение:\n"
                "/start - Показать список команд\n"
                "/help - Показать справку о боте\n"
                "/connect - Подключиться к анонимному чату\n"
                "/stop - Остановить анонимный чат\n")
 
-    # Отправка сообщения с описанием команд
-    update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
+
+
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Echo the user message."""
+
+    await update.message.reply_text(update.message.text)
+
 
 def main():
-    # Ваш токен доступа
-    token = os.getenv('TG_BOT_TOKEN')
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    application = Application.builder().token(token).build()
 
-    # Инициализация бота
-    updater = Updater(token, use_context=True)
+    application.add_handler(CommandHandler("help", help))
 
-    # Получение диспетчера для регистрации обработчиков команд
-    dispatcher = updater.dispatcher
+    # on non command i.e message - echo the message on Telegram
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-    # Добавьте обработчики команд здесь
-    dispatcher.add_handler(CommandHandler("start", start))
+    # Run the bot until the user presses Ctrl-C
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-    # Запуск бота
-    updater.start_polling()
-    updater.idle()
 
 if __name__ == '__main__':
     main()
