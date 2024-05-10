@@ -1,11 +1,15 @@
 import os
-from _curses import echo
-
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import Updater, CommandHandler, CallbackContext, Application, ContextTypes, MessageHandler, filters
-
+from telegram.ext import (
+    Application,
+    ChatMemberHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 from ChatManager import ChatManager
 
 load_dotenv()
@@ -49,13 +53,37 @@ async def start(update, context):
     chat_manager.start_chat(user_id, partner_id)
 
     # Отправляем уведомление об успешном старте чата
-    update.message.reply_text("Вы начали новый анонимный чат. Пришлите свое первое сообщение.")
+    await update.message.reply_text("Вы начали новый анонимный чат. Пришлите свое первое сообщение.")
 
 
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Echo the user message."""
+# Обработчик всех сообщений от пользователя
+def handle_message(update, context):
+    # Получаем идентификатор пользователя, который отправил сообщение
+    user_id = update.message.from_user.id
 
-    await update.message.reply_text(update.message.text)
+    # Получаем текст сообщения
+    text = update.message.text
+
+    # Получаем список пользователей, участвующих в текущем чате
+    chat_users = chat_manager.get_chat_users(user_id)
+
+    # Если пользователь не участвует в чате, прекращаем выполнение функции
+    if not chat_users:
+        return
+
+    # Находим пользователя, с которым пользователь общается в чате
+    for chat_id, users in chat_manager.chats.items():
+        if user_id in users:
+            partner_id = next(uid for uid in users if uid != user_id)
+            break
+    else:
+        return
+
+    # Отправляем сообщение партнеру по чату
+    context.bot.send_message(partner_id, text)
+
+    # Добавляем сообщение в чат
+    chat_manager.add_message((user_id, partner_id), text)
 
 
 def main():
@@ -65,7 +93,7 @@ def main():
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("start", start))
     # on non command i.e message - echo the message on Telegram
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
