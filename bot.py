@@ -1,82 +1,36 @@
-import os
 import asyncio
-from dotenv import load_dotenv
-from aiogram import Bot, Dispatcher, types
-# from aiogram.utils import executor
-from ChatManager import ChatManager
 
-load_dotenv()
+from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
 
-bot = Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
-dp = Dispatcher(bot)
-chat_manager = ChatManager()
+from motor.motor_asyncio import AsyncIOMotorClient
 
+from handlers import setup_message_routers
+from callbacks import setup_callbacks_routers
 
-@dp.message_handler(commands=['start'])
-async def start(message: types.Message):
-    user_id = message.from_user.id
+from middlewares import CheckUser
 
-    chat_users = chat_manager.get_chat_users(user_id)
-
-    if chat_users:
-        await message.answer("Вы уже находитесь в чате с другим пользователем.")
-        return
-
-    for chat_id, users in chat_manager.chats.items():
-        if user_id in users:
-            partner_id = next(uid for uid in users if uid != user_id)
-            break
-    else:
-        await message.answer("Подождите, пока другой пользователь запустит команду /start.")
-        return
-
-    chat_manager.start_chat(user_id, partner_id)
-
-    await message.answer("Вы начали новый анонимный чат. Пришлите свое первое сообщение.")
+from config_reader import config
 
 
-@dp.message_handler(commands=['help'])
-async def help(message: types.Message):
-    message_text = ("Привет! Я TMA - Анонимный Телеграм Мессенджер.\n\n"
-                    "Вот список доступных команд и их назначение:\n"
-                    "/start - Подключиться к анонимному чату\n"
-                    "/help - Показать справку о боте\n"
-                    "/stop - Остановить анонимный чат\n")
-    await message.answer(message_text)
+async def main() -> None:
 
+    bot = Bot(config.BOT_TOKEN.get_secret_value(), parse_mode=ParseMode.HTML)
 
-@dp.message_handler(commands=['stop'])
-async def stop(message: types.Message):
-    user_id = message.from_user.id
-    chat_manager.end_chat(user_id)
-    await message.answer("Чат завершен.")
+    dp = Dispatcher()
 
+    cluster = AsyncIOMotorClient(config.DATABASE_URL.get_secret_value())
+    db = cluster.anonimdb
 
-@dp.message_handler()
-async def handle_message(message: types.Message):
-    user_id = message.from_user.id
-    text = message.text
-    chat_users = chat_manager.get_chat_users(user_id)
+    dp.message.middleware(CheckUser())
 
-    if not chat_users:
-        return
+    message_routers = setup_message_routers()
+    callback_routers = setup_callbacks_routers()
+    dp.include_router(message_routers)
+    dp.include_router(callback_routers)
 
-    for chat_id, users in chat_manager.chats.items():
-        if user_id in users:
-            partner_id = next(uid for uid in users if uid != user_id)
-            break
-    else:
-        return
-
-    await bot.send_message(partner_id, text)
-    await chat_manager.add_message((user_id, partner_id), text)
-
-
-async def main():
-    # Запускаем обработку входящих сообщений
-    await dp.start_polling()
+    await dp.start_polling(bot, db=db)
 
 
 if __name__ == '__main__':
     asyncio.run(main())
-    # dp.start_polling()
