@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tma-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tma-container
+  template:
+    metadata:
+      labels:
+        app: tma-container
+    spec:
+      containers:
+      - name: tma-container
+        image: harpoon666/tma:latest
+        ports:
+         - containerPort: 80
