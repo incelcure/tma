@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tma-container
+spec:
+  containers:
+  - name: tma-container
+    image: harpoon666/tma:0.1
+    ports:
+    - containerPort: 80

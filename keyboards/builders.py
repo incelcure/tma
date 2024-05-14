@@ -3,7 +3,7 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 
 def reply_builder(
     text: str | list[str],
-    sizes: int | list[int]=2,
+    sizes: int | list[int] = 2,
     **kwargs
 ) -> ReplyKeyboardBuilder:
     builder = ReplyKeyboardBuilder()
